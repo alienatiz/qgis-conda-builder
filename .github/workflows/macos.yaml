@@ -3,12 +3,10 @@ name: 🍎 MacOS
 on:
   push:
     branches:
-      - main
+      - test_1
   pull_request:
     branches:
-      - main
-  schedule:
-    - cron: '40 7 * * *'
+      - test_1
     
       
 # TODO: probably create a nightly job
