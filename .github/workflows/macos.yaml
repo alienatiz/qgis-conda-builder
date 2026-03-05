@@ -3,10 +3,10 @@ name: 🍎 MacOS
 on:
   push:
     branches:
-      - main
+      - test_2
   pull_request:
     branches:
-      - main
+      - test_2
   schedule:
     - cron: '40 7 * * *'
     
