@@ -84,8 +84,7 @@ jobs:
             -OutFile $mm
       
           conda run -n constructor conda build constructor
-          $pkg = (conda run -n constructor conda build constructor --output).Trim()
-          conda run -n constructor conda install -y $pkg
+          conda install -n constructor -y --use-local constructor
       
           conda run -n constructor constructor --version
           conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe=./$mm .
