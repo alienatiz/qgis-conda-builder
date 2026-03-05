@@ -76,14 +76,19 @@ jobs:
       - name: 📦 Package
         shell: pwsh
         run: |
-          curl -s https://api.github.com/repos/mamba-org/micromamba-releases/releases/latest
-          curl -s https://api.github.com/repos/mamba-org/micromamba-releases/releases/latest | grep 'browser_download_url.*micromamba-${{ matrix.conda_platform }}"' | cut -d : -f 2,3 | tr -d '"'
-          curl -s https://api.github.com/repos/mamba-org/micromamba-releases/releases/latest | grep 'browser_download_url.*micromamba-${{ matrix.conda_platform }}"' | cut -d : -f 2,3 | tr -d '"' | wget -qi -
-          wget https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/micromamba-${{ matrix.conda_platform }}
-          ls -al
-          conda build constructor
-          conda install /Users/runner/miniconda3/envs/constructor/conda-bld/osx-64/*.tar.bz2
-          constructor --platform=${{ matrix.conda_platform }} --conda-exe=micromamba-${{ matrix.conda_platform }} .
+          $ErrorActionPreference = 'Stop'
+      
+          $mm = "micromamba-${{ matrix.conda_platform }}"
+          Invoke-WebRequest `
+            -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" `
+            -OutFile $mm
+      
+          conda run -n constructor conda build constructor
+          $pkg = (conda run -n constructor conda build constructor --output).Trim()
+          conda run -n constructor conda install -y $pkg
+      
+          conda run -n constructor constructor --version
+          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe=./$mm .
 
       - name: 📦 Upload artifacts
         uses: actions/upload-artifact@v4
