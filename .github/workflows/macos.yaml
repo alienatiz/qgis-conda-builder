@@ -34,7 +34,7 @@ jobs:
 
   package:
     name: Package for macOS
-    runs-on: macos-14
+    runs-on: ${{ matrix.runner }}
     needs: get-version
     env:
       QGIS_VERSION: ${{ needs.get-version.outputs.QGIS_VERSION }}
@@ -45,8 +45,10 @@ jobs:
         include:
           - architecture: 'x86_64'
             conda_platform: 'osx-64'
+            runner: macos-15-intel
           - architecture: 'arm64'
             conda_platform: 'osx-arm64'
+            runner: macos-15
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
