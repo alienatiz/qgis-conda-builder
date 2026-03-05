@@ -34,7 +34,7 @@ jobs:
 
   package:
     name: Package for macOS
-    runs-on: macos-13
+    runs-on: macos-14
     needs: get-version
     env:
       QGIS_VERSION: ${{ needs.get-version.outputs.QGIS_VERSION }}
