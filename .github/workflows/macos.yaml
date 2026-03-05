@@ -39,7 +39,7 @@ jobs:
     env:
       QGIS_VERSION: ${{ needs.get-version.outputs.QGIS_VERSION }}
       QGIS_VERSION_SHORT: ${{ needs.get-version.outputs.QGIS_VERSION_SHORT }}
-      MICROMAMBA_PLATFORM: ${{ needs.get-version.outputs.MICROMAMBA_PLATFORM }}
+      MICROMAMBA_PLATFORM: ${{ matrix.conda_platform }}
     strategy:
       matrix:
         include:
