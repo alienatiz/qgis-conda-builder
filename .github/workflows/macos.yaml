@@ -16,12 +16,14 @@ on:
 jobs:
   get-version:
     name: Get version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       QGIS_VERSION: ${{ steps.get-version.outputs.QGIS_VERSION }}
       QGIS_VERSION_SHORT: ${{ steps.get-version.outputs.QGIS_VERSION_SHORT }}
-      MICROMAMBA_PLATFORM: ${{ steps.get-version.outputs.MICROMAMBA_PLATFORM }}
     steps:
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
       - name: 🌾 Get latest version
         id: get-version
         shell: bash
@@ -30,7 +32,6 @@ jobs:
           QGIS_VERSION_SHORT=$(echo $QGIS_VERSION | cut -d'.'  -f 1,2)
           echo QGIS_VERSION=$QGIS_VERSION >> $GITHUB_OUTPUT
           echo QGIS_VERSION_SHORT=$QGIS_VERSION_SHORT >> $GITHUB_OUTPUT
-          echo MICROMAMBA_PLATFORM=$MICROMAMBA_PLATFORM >> $GITHUB_OUTPUT
   
   package:
     name: Package for macOS
@@ -74,46 +75,47 @@ jobs:
           activate-environment: "constructor"
           environment-file: "environment.yaml"
 
-      - name: 📦 Package
+      - name: Package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
       
           $croot = Join-Path $env:HOME "conda-bld"
           $env:CONDA_BLD_PATH = $croot
-      
           $mm = "micromamba-${{ matrix.conda_platform }}"
-          Invoke-WebRequest -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" -OutFile $mm
+          Invoke-WebRequest `
+            -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" `
+            -OutFile $mm
           & /bin/chmod +x $mm
-          & "./$mm" --version
       
           conda run -n constructor conda build --croot "$croot" ./constructor
-          conda install -n constructor -y --use-local constructor
-      
+          conda run -n constructor conda install -y --use-local constructor
+          conda run -n constructor python -c "import shutil; print('constructor=', shutil.which('constructor'))"
           conda run -n constructor constructor --version
-          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe="./$mm" .
+      
+          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe=./$mm .
       
           $expected = "QGIS-$env:QGIS_VERSION-MacOSX-${{ matrix.architecture }}.pkg"
-          $pkg = Get-ChildItem -Path . -Filter *.pkg | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $pkg = Get-ChildItem -Path . -Filter *.pkg -Recurse |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $pkg) { throw "No .pkg produced in workspace." }
-          Move-Item $pkg.FullName $expected -Force
-      
-            - name: 📦 Upload artifacts
-              uses: actions/upload-artifact@v4
-              with:
-                name: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}
-                path: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}.pkg
+          Copy-Item $pkg.FullName $expected -Force
+
+      - name: 📦 Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}
+          path: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}.pkg
 
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - get-version
       - package
     env:
       QGIS_VERSION: ${{ needs.get-version.outputs.QGIS_VERSION }}
       QGIS_VERSION_SHORT: ${{ needs.get-version.outputs.QGIS_VERSION_SHORT }}
-      MICROMAMBA_PLATFORM: ${{ needs.get-version.outputs.MICROMAMBA_PLATFORM }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -127,4 +129,4 @@ jobs:
           artifacts: "*.pkg"
           body: "See https://github.com/qgis/QGIS/releases"
           tag: ${{ env.QGIS_VERSION }}
-          allowUpdates: True
+          allowUpdates: true
