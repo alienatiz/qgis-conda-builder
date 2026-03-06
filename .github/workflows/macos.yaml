@@ -107,8 +107,8 @@ jobs:
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
           
           if (-not $pkg) {
-            Write-Host "No .pkg produced in $outDir"
-            Write-Host "Contents of $outDir:"
+            Write-Host ("No .pkg produced in {0}" -f $outDir)
+            Write-Host ("Contents of {0}:" -f $outDir)
             Get-ChildItem -Path $outDir -Recurse | Select-Object FullName, Length
             throw "No .pkg produced."
           }
