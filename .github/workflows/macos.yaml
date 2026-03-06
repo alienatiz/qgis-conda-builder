@@ -93,12 +93,26 @@ jobs:
           conda run -n constructor python -c "import shutil; print('constructor=', shutil.which('constructor'))"
           conda run -n constructor constructor --version
       
-          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe=./$mm .
-      
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "dist"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          
+          $workDir = $env:GITHUB_WORKSPACE
+          $mmAbs  = Join-Path $workDir $mm
+          
+          conda run -n constructor constructor --debug -v --output-dir "$outDir" `
+            --platform=${{ matrix.conda_platform }} --conda-exe="$mmAbs" "$workDir"
+          
           $expected = "QGIS-$env:QGIS_VERSION-MacOSX-${{ matrix.architecture }}.pkg"
-          $pkg = Get-ChildItem -Path . -Filter *.pkg -Recurse |
+          $pkg = Get-ChildItem -Path $outDir -Filter *.pkg |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $pkg) { throw "No .pkg produced in workspace." }
+          
+          if (-not $pkg) {
+            Write-Host "No .pkg produced in $outDir"
+            Write-Host "Contents of $outDir:"
+            Get-ChildItem -Path $outDir -Recurse | Select-Object FullName, Length
+            throw "No .pkg produced."
+          }
+          
           Copy-Item $pkg.FullName $expected -Force
 
       - name: 📦 Upload artifacts
