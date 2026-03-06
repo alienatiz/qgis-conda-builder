@@ -31,7 +31,7 @@ jobs:
           echo QGIS_VERSION=$QGIS_VERSION >> $GITHUB_OUTPUT
           echo QGIS_VERSION_SHORT=$QGIS_VERSION_SHORT >> $GITHUB_OUTPUT
           echo MICROMAMBA_PLATFORM=$MICROMAMBA_PLATFORM >> $GITHUB_OUTPUT
-
+  
   package:
     name: Package for macOS
     runs-on: ${{ matrix.runner }}
@@ -41,6 +41,7 @@ jobs:
       QGIS_VERSION_SHORT: ${{ needs.get-version.outputs.QGIS_VERSION_SHORT }}
       MICROMAMBA_PLATFORM: ${{ matrix.conda_platform }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - architecture: 'x86_64'
