@@ -29,18 +29,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          osx64=$(conda search -c conda-forge qgis --subdir osx-64 \
-            | awk '$1=="qgis" && $3 ~ /py311/ {print $2}' | sort -V | uniq)
-          arm64=$(conda search -c conda-forge qgis --subdir osx-arm64 \
-            | awk '$1=="qgis" && $3 ~ /py311/ {print $2}' | sort -V | uniq)
-
-          QGIS_VERSION=$(comm -12 <(printf "%s\n" "$osx64") <(printf "%s\n" "$arm64") | tail -n 1)
+          
+          osx64=$(
+            conda search -c conda-forge qgis --subdir osx-64 \
+            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' \
+            | sort -u
+          )
+          
+          arm64=$(
+            conda search -c conda-forge qgis --subdir osx-arm64 \
+            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' \
+            | sort -u
+          )
+          
+          common=$(comm -12 <(printf "%s\n" "$osx64") <(printf "%s\n" "$arm64"))
+          
+          QGIS_VERSION=$(printf "%s\n" "$common" | sort -V | tail -n 1)
+          
           if [[ -z "${QGIS_VERSION:-}" ]]; then
             echo "No common qgis version for py311 on osx-64 and osx-arm64" >&2
+            echo "osx-64 candidates:" >&2; printf "%s\n" "$osx64" | tail -n 20 >&2
+            echo "osx-arm64 candidates:" >&2; printf "%s\n" "$arm64" | tail -n 20 >&2
             exit 1
           fi
-
+          
           QGIS_VERSION_SHORT=$(echo "$QGIS_VERSION" | cut -d'.' -f 1,2)
           echo "QGIS_VERSION=$QGIS_VERSION" >> "$GITHUB_OUTPUT"
           echo "QGIS_VERSION_SHORT=$QGIS_VERSION_SHORT" >> "$GITHUB_OUTPUT"
