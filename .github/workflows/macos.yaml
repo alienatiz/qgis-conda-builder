@@ -79,22 +79,30 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
       
-          $mm = "micromamba-${{ matrix.conda_platform }}"
-          Invoke-WebRequest `
-            -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" `
-            -OutFile $mm
+          $croot = Join-Path $env:HOME "conda-bld"
+          $env:CONDA_BLD_PATH = $croot
       
-          conda run -n constructor conda build constructor
+          $mm = "micromamba-${{ matrix.conda_platform }}"
+          Invoke-WebRequest -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" -OutFile $mm
+          & /bin/chmod +x $mm
+          & "./$mm" --version
+      
+          conda run -n constructor conda build --croot "$croot" ./constructor
           conda install -n constructor -y --use-local constructor
       
           conda run -n constructor constructor --version
-          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe=./$mm .
-
-      - name: 📦 Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}
-          path: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}.pkg
+          conda run -n constructor constructor --platform=${{ matrix.conda_platform }} --conda-exe="./$mm" .
+      
+          $expected = "QGIS-$env:QGIS_VERSION-MacOSX-${{ matrix.architecture }}.pkg"
+          $pkg = Get-ChildItem -Path . -Filter *.pkg | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $pkg) { throw "No .pkg produced in workspace." }
+          Move-Item $pkg.FullName $expected -Force
+      
+            - name: 📦 Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                name: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}
+                path: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}.pkg
 
   release:
     name: Release
