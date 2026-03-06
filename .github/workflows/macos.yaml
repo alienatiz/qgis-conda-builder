@@ -15,7 +15,6 @@ on:
 
 jobs:
   get-version:
-    name: Get version
     runs-on: ubuntu-24.04
     outputs:
       QGIS_VERSION: ${{ steps.get-version.outputs.QGIS_VERSION }}
@@ -24,14 +23,27 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
-      - name: 🌾 Get latest version
+
+      - name: 🌾 Get latest macOS-compatible version (py311)
         id: get-version
         shell: bash
         run: |
-          QGIS_VERSION=$(conda search -c conda-forge -f qgis | grep py311 | tail -n 1 | tr -s ' ' | cut -f 2 -d ' ')
-          QGIS_VERSION_SHORT=$(echo $QGIS_VERSION | cut -d'.'  -f 1,2)
-          echo QGIS_VERSION=$QGIS_VERSION >> $GITHUB_OUTPUT
-          echo QGIS_VERSION_SHORT=$QGIS_VERSION_SHORT >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          osx64=$(conda search -c conda-forge qgis --subdir osx-64 \
+            | awk '$1=="qgis" && $3 ~ /py311/ {print $2}' | sort -V | uniq)
+          arm64=$(conda search -c conda-forge qgis --subdir osx-arm64 \
+            | awk '$1=="qgis" && $3 ~ /py311/ {print $2}' | sort -V | uniq)
+
+          QGIS_VERSION=$(comm -12 <(printf "%s\n" "$osx64") <(printf "%s\n" "$arm64") | tail -n 1)
+          if [[ -z "${QGIS_VERSION:-}" ]]; then
+            echo "No common qgis version for py311 on osx-64 and osx-arm64" >&2
+            exit 1
+          fi
+
+          QGIS_VERSION_SHORT=$(echo "$QGIS_VERSION" | cut -d'.' -f 1,2)
+          echo "QGIS_VERSION=$QGIS_VERSION" >> "$GITHUB_OUTPUT"
+          echo "QGIS_VERSION_SHORT=$QGIS_VERSION_SHORT" >> "$GITHUB_OUTPUT"
   
   package:
     name: Package for macOS
@@ -79,47 +91,57 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-      
+          $PSNativeCommandUseErrorActionPreference = $true
+          Set-StrictMode -Version Latest
+
+          Set-Location $env:GITHUB_WORKSPACE
+          $workDir = (Get-Location).Path
+
           $croot = Join-Path $env:HOME "conda-bld"
           $env:CONDA_BLD_PATH = $croot
+
           $mm = "micromamba-${{ matrix.conda_platform }}"
-          Invoke-WebRequest `
-            -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" `
-            -OutFile $mm
+          Invoke-WebRequest -Uri "https://github.com/mamba-org/micromamba-releases/releases/download/1.4.9-0/$mm" -OutFile $mm
           & /bin/chmod +x $mm
-      
-          conda run -n constructor conda build --croot "$croot" ./constructor
+          $mmAbs = Join-Path $workDir $mm
+          & $mmAbs --version
+
+          conda run -n constructor conda build --croot "$croot" ./constructor/recipe
           conda run -n constructor conda install -y --use-local constructor
-          conda run -n constructor python -c "import shutil; print('constructor=', shutil.which('constructor'))"
-          conda run -n constructor constructor --version
-      
-          $outDir = Join-Path $env:GITHUB_WORKSPACE "dist"
+
+          $outDir = Join-Path $workDir "dist"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-          
-          $workDir = $env:GITHUB_WORKSPACE
-          $mmAbs  = Join-Path $workDir $mm
-          
+          $log = Join-Path $outDir "constructor.log"
+
           conda run -n constructor constructor --debug -v --output-dir "$outDir" `
-            --platform=${{ matrix.conda_platform }} --conda-exe="$mmAbs" "$workDir"
-          
-          $expected = "QGIS-$env:QGIS_VERSION-MacOSX-${{ matrix.architecture }}.pkg"
-          $pkg = Get-ChildItem -Path $outDir -Filter *.pkg |
+            --platform=${{ matrix.conda_platform }} --conda-exe "$mmAbs" "$workDir" 2>&1 | Tee-Object -FilePath $log
+
+          $pkg = Get-ChildItem -Path $outDir -Filter *.pkg -Recurse |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          
+
           if (-not $pkg) {
-            Write-Host ("No .pkg produced in {0}" -f $outDir)
-            Write-Host ("Contents of {0}:" -f $outDir)
+            Write-Host ("No .pkg produced. dist listing:")
             Get-ChildItem -Path $outDir -Recurse | Select-Object FullName, Length
+            Write-Host ("--- tail of constructor.log ---")
+            Get-Content $log -Tail 120
             throw "No .pkg produced."
           }
-          
-          Copy-Item $pkg.FullName $expected -Force
+
+          $expected = "QGIS-$env:QGIS_VERSION-MacOSX-${{ matrix.architecture }}.pkg"
+          Copy-Item $pkg.FullName (Join-Path $workDir $expected) -Force
 
       - name: 📦 Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}
           path: QGIS-${{ env.QGIS_VERSION }}-MacOSX-${{ matrix.architecture }}.pkg
+
+      - name: 📦 Upload constructor log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: constructor-log-${{ matrix.architecture }}
+          path: dist/constructor.log
 
   release:
     name: Release
