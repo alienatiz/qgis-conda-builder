@@ -5,4 +5,5 @@ channels:
 dependencies:
   - conda-build
   - conda-standalone
+  - conda-libmamba-solver
   - pillow >=3.1
