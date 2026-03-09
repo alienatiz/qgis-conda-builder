@@ -1,6 +1,7 @@
 name: QGIS
 version: "__ver__"
 channels:
+  - "conda-forge/label/qgis_ltr"
   - "conda-forge"
 specs:
   - qgis=__ver__
