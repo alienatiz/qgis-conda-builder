@@ -128,14 +128,27 @@ jobs:
           conda run -n constructor constructor --debug -v --output-dir "$outDir" `
             --platform=${{ matrix.conda_platform }} --conda-exe "$mmAbs" "$workDir" 2>&1 | Tee-Object -FilePath $log
 
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Write-Host ("constructor failed (exit {0})" -f $code)
+            Write-Host ("--- tail of constructor.log ---")
+            Get-Content $log -Tail 200
+            exit $code
+          }
+
           $pkg = Get-ChildItem -Path $outDir -Filter *.pkg -Recurse |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
+          
+          if (-not $pkg) {
+            $pkg = Get-ChildItem -Path $workDir -Filter *.pkg -Recurse |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          }
+          
           if (-not $pkg) {
             Write-Host ("No .pkg produced. dist listing:")
             Get-ChildItem -Path $outDir -Recurse | Select-Object FullName, Length
             Write-Host ("--- tail of constructor.log ---")
-            Get-Content $log -Tail 120
+            Get-Content $log -Tail 200
             throw "No .pkg produced."
           }
 
