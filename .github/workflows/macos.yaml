@@ -31,15 +31,13 @@ jobs:
           set -euo pipefail
           
           osx64=$(
-            conda search -c conda-forge qgis --subdir osx-64 \
-            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' \
-            | sort -u
+            conda search -c conda-forge/label/qgis_ltr qgis --subdir osx-64 \
+            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' | sort -u
           )
           
           arm64=$(
-            conda search -c conda-forge qgis --subdir osx-arm64 \
-            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' \
-            | sort -u
+            conda search -c conda-forge/label/qgis_ltr qgis --subdir osx-arm64 \
+            | awk '$1=="qgis" && $3 ~ /^py311/ {print $2}' | sort -u
           )
           
           common=$(comm -12 <(printf "%s\n" "$osx64") <(printf "%s\n" "$arm64"))
